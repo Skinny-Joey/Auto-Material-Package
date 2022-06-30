@@ -10,7 +10,6 @@ from etl.get_wordlists import read_stopword
 
 args = parse_args()
 
-
 def get_worddict(file):
     datas = open(file, 'r', encoding='utf_8').read().split('\n')
     datas = list(filter(None, datas))
