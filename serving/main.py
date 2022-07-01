@@ -10,6 +10,9 @@ from sentence_transformers import SentenceTransformer as SBert
 from commons.get_logger import get_logger
 from conf.params import *
 import time
+from commons.download import load_media
+from commons.cv_tool import image_to_base64
+import re
 
 
 def filter_keywords(candidates, filter_words):
@@ -47,6 +50,29 @@ def filter_tag(candidates, package_detail):
         if not cand.get('invalid_tag'):
             cand['invalid_tag'] = False
     candidates = [cand for cand in candidates if not cand['invalid_tag']]
+    return candidates
+
+
+def filter_cover_bracket(candidates):
+    pattern = re.compile(args.pattern)
+    for cand in candidates:
+        if cand.get('contentType') != 'article' and cand.get('coverInfos'):
+            for cover in cand['coverInfos']:
+                file_path = load_media(cover.get('url'))
+                code = image_to_base64(file_path)
+                cover_text = request.post_ocr(code)
+                if pattern.search(cover_text):
+                    cand['is_bracket'] = True
+    candidates = [cand for cand in candidates if not cand.get('is_bracket')]
+    return candidates
+
+
+def filter_title_bracket(candidates):
+    pattern = re.compile(args.pattern)
+    for cand in candidates:
+        if cand.get('contentType') != 'article' and pattern.search(cand['title']):
+            cand['is_bracket'] = True
+    candidates = [cand for cand in candidates if not cand.get('is_bracket')]
     return candidates
 
 
@@ -147,6 +173,8 @@ def update_single_package(package_id, cnn_model, device, sentence_transformers, 
         detail = request.get_detail(id=cand['infoId'])
         if detail:
             cand['authorId'] = detail['authorId']
+            if detail.get('coverInfos'):
+                cand['coverInfos'] = [eval(cover) for cover in detail['coverInfos']]
             if 'article' == detail['contentType']:
                 cand['content'] = detail['content']
                 cand['filter_content'] = content_wash.filter_tags(cand['content'])  # 清除html后的文本
@@ -179,7 +207,7 @@ def update_single_package(package_id, cnn_model, device, sentence_transformers, 
                     cand['filter_content'] += t['onebest']
 
     # 正式开始处理
-    logger.info('过滤长度过短的文章')
+    logger.info('-1-过滤长度过短的文章')
     candidates = [cand for cand in candidates if
                   cand.get('filter_content') and
                   (len(cand['filter_content']) > args.min_length or
@@ -187,15 +215,21 @@ def update_single_package(package_id, cnn_model, device, sentence_transformers, 
 
     # candidates = [cand for cand in candidates if cand.get('contentType') != 'article']  # todo 只保留视频（调试用）
 
-    logger.info('过滤掉包含产品名称和公司名称的内容')
+    logger.info('-2-过滤掉标题中带有括号的视频，说明是分集视频')
+    candidates = filter_title_bracket(candidates)
+
+    logger.info('-3-过滤掉包含产品名称和公司名称的内容')
     candidates = filter_keywords(candidates, filter_words)
 
-    logger.info('过滤掉低质量文章，使用textCNN计算备选文章质量')
+    logger.info('-4-过滤掉低质量文章，使用textCNN计算备选文章质量')
     candidates = filter_low_quality(candidates, cnn_model, device)
 
     if package_detail.get('name') in args.tag_filter_package:
-        logger.info('对部分素材包，使用打标功能，过滤掉其他不属于该保险种类的文章')
+        logger.info('-5-对部分素材包，使用打标功能，过滤掉其他不属于该保险种类的文章')
         candidates = filter_tag(candidates, package_detail)
+
+    logger.info('-6-过滤掉封面图的标题中，带有括号的视频，说明是分集视频')
+    candidates = filter_cover_bracket(candidates)
 
     # 过滤完成后若没有内容剩余，则直接返回空
     if not candidates:
@@ -229,23 +263,33 @@ def update_single_package(package_id, cnn_model, device, sentence_transformers, 
         each_article_num[0] += args.require_article_num - sum(each_article_num)
         each_video_num[0] += args.require_video_num - sum(each_video_num)
     else:
-        each_article_num = args.require_article_num
-        each_video_num = args.require_video_num
+        each_article_num = [args.require_article_num]
+        each_video_num = [args.require_video_num]
 
     selected_article = []
     selected_video = []
-    for score_index, current_require_article_num, current_require_video_num in zip(range(len(candidates[0]['score'])),
-                                                                                   each_article_num, each_video_num):
+    for score_index, current_require_article_num, current_require_video_num in zip(range(len(candidates[0]['score'])), each_article_num, each_video_num):
         candidates = sorted(candidates, key=lambda cand: cand['score'][score_index], reverse=True)
+
+        current_selected_article = [cand for cand in candidates if 'article' == cand['contentType']][
+                                   :current_require_article_num * 2]
+        current_selected_video = [cand for cand in candidates if 'article' != cand['contentType']][
+                                 :current_require_video_num * 2]
+
+        # todo 删除相似文章
+
+
         current_selected_article = [cand for cand in candidates if 'article' == cand['contentType']][:current_require_article_num]
         current_selected_video = [cand for cand in candidates if 'article' != cand['contentType']][:current_require_video_num]
         for cand in current_selected_article:
-            selected_article.append('https://market.yiyouliao.com/v2/content-detail/article/' + cand['infoId'])
+            selected_article.append(cand)
             candidates.remove(cand)
         for cand in current_selected_video:
-            selected_video.append('https://market.yiyouliao.com/v2/content-detail/article/' + cand['infoId'])
+            selected_video.append(cand)
             candidates.remove(cand)
 
+    selected_article = ['https://market.yiyouliao.com/v2/content-detail/article/' + cand['infoId'] for cand in selected_article]
+    selected_video = ['https://market.yiyouliao.com/v2/content-detail/article/' + cand['infoId'] for cand in selected_video]
     return selected_article, selected_video
 
 
@@ -264,6 +308,7 @@ if __name__ == '__main__':
                 line = f.readline()[:-1]
                 filter_words.append(line)
     filter_words = [f_w for f_w in filter_words if f_w]
+    allpackage = allpackage[3:]
     if allpackage:
         # allpackage = allpackage[-2:]  # todo
         package_ids = [{'id': p['packageInfo']['id'], 'name': p['packageInfo']['name']} for p in allpackage]

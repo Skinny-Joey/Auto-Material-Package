@@ -28,6 +28,9 @@ def parse_args():
     parser.add_argument('--filter_words', default=[basedir + '/data/保险名称.txt', basedir + '/data/保险公司名称.txt'], type=list, required=False, help='需要过滤的词语列表')
     parser.add_argument('--tag_filter_package', default=['重疾险','医疗险','教育险','养老险','教育险','意外险'], type=list,
                         required=False, help='需要过滤的词语列表')
+    parser.add_argument('--picture_download_path', default=basedir+'/data/temp_picture/', type=str, required=False, help='封面图下载路径')
+    parser.add_argument('--temp_picture_num', default=20, type=int, required=False, help='可以缓存在本地的封面图数量')
+    parser.add_argument('--pattern', default=r'[\(|（].*[\)|）]', type=str, required=False, help='正则匹配括号')
 
     args = parser.parse_args()
 
@@ -64,11 +67,11 @@ headers = {'Accept': '*/*',
            }
 
 headers_market = headers.copy()
-headers_market['token'] = 'e7293698f8cf41c28d8cc59569ee71e3'
+headers_market['token'] = 'd85ac1c30d0741fb9e4a4880309cf25f'
 headers_market['Host'] = 'market.yiyouliao.com'
 
 headers_manager = headers.copy()
-headers_manager['token'] = '522f65e8127440f5a1a5f004bd902e2a'
+headers_manager['token'] = '808fa45b8bf44f5abf335e2715b28d47'
 headers_manager['Host'] = 'manager.yiyouliao.net'
 
 headers_json = headers.copy()
@@ -127,7 +130,7 @@ class PackageDescription:
 
 
 package_bao = PackageDescription('宝爸宝妈',
-                                 ['教育',
-                                  '健康'])
+                                 ['孩子教育',
+                                  '孩子健康'])
 
 all_description = [package_bao]

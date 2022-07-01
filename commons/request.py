@@ -236,6 +236,30 @@ def post_tag(title='', content='', industry='保险行业'):
     return None
 
 
+def post_ocr(images_code):
+    """
+    OCR接口
+    """
+    data = {"images": images_code}
+    url = 'http://192.168.37.58:5069/cv/ocr/text'
+    # params = {'Content-Type': 'application/json'}
+    headers = {"Content-type": "application/json", "Accept": "text/plain", "charset": "UTF-8"}
+    # for _ in range(3):
+    try:
+        response = requests.post(url, data=json.dumps(data), headers=headers)
+        response = json.loads(response.text)
+        # print('请求成功: 第' + str(_) + '次')
+        text = ''
+        for res in response.get('data'):
+            text += res
+        return text
+        # response = json.loads(response.data)
+    except Exception as e:
+        # pass
+        print(e)
+        return None
+
+
 
 if __name__ == '__main__':
     # articleinpackage = get_package_article(package_id='3eddf3d46f284909cc9dc4855ea722d0')
