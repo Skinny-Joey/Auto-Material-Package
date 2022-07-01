@@ -65,11 +65,11 @@ headers = {'Accept': '*/*',
            }
 
 headers_market = headers.copy()
-headers_market['token'] = 'd85ac1c30d0741fb9e4a4880309cf25f'
+headers_market['token'] = '617794a46954437fba43405523ca5405'
 headers_market['Host'] = 'market.yiyouliao.com'
 
 headers_manager = headers.copy()
-headers_manager['token'] = '808fa45b8bf44f5abf335e2715b28d47'
+headers_manager['token'] = 'de222d720a7b42abbdfbb9884d3c81b7'
 headers_manager['Host'] = 'manager.yiyouliao.net'
 
 headers_json = headers.copy()

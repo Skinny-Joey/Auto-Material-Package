@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
+import torch
 
 sys.path.insert(0, sys.path[0] + '/../')
 from commons import request, content_wash
@@ -242,28 +243,33 @@ def update_single_package(package_id, cnn_model, device, sentence_transformers, 
                                                                                    each_article_num, each_video_num):
         candidates = sorted(candidates, key=lambda cand: cand['score'][score_index], reverse=True)
         current_selected_article = [cand for cand in candidates if 'article' == cand['contentType']][
-                                   :current_require_article_num*2]
+                                   :current_require_article_num * 2]
         current_selected_video = [cand for cand in candidates if 'article' != cand['contentType']][
-                                 :current_require_video_num*2]
+                                 :current_require_video_num * 2]
 
         # TODO 计算每个cand与其他cand之间的相似度
         for i in range(len(current_selected_article)):
-            sim = 0
-            if 'diversity' not in  current_selected_article[i]:current_selected_article[i]['diversity'] = []
-            for j in range(len(current_selected_article)):
-                sim += cos_sim(current_selected_article[i]['filter_content_embedding'],
-                               current_selected_article[j]['filter_content_embedding'])
+            if 'diversity' not in current_selected_article[i]:
+                current_selected_article[i]['diversity'] = []
+            avg_embedding = torch.mean(
+                torch.tensor([cand['filter_content_embedding'] for cand in current_selected_article if
+                              cand['infoId'] != current_selected_article[i]['infoId']]), dim=0)
+            sim = cos_sim(current_selected_article[i]['filter_content_embedding'], avg_embedding)
             current_selected_article[i]['diversity'].append(sim)
+
         for i in range(len(current_selected_video)):
-            sim = 0
-            if 'diversity' not in  current_selected_video[i]:current_selected_video[i]['diversity'] = []
-            for j in range(len(current_selected_video)):
-                sim += cos_sim(current_selected_video[i]['filter_content_embedding'],
-                               current_selected_video[j]['filter_content_embedding'])
+            if 'diversity' not in current_selected_video[i]:
+                current_selected_video[i]['diversity'] = []
+            avg_embedding = torch.mean(
+                torch.tensor([cand['filter_content_embedding'] for cand in current_selected_video if
+                              cand['infoId'] != current_selected_video[i]['infoId']]), dim=0)
+            sim = cos_sim(current_selected_video[i]['filter_content_embedding'], avg_embedding)
             current_selected_video[i]['diversity'].append(sim)
 
-        current_selected_article = sorted(current_selected_article, key=lambda cand: cand['diversity'][score_index], reverse=False)
-        current_selected_video = sorted(current_selected_video, key=lambda cand: cand['diversity'][score_index], reverse=False)
+        current_selected_article = sorted(current_selected_article, key=lambda cand: cand['diversity'][score_index],
+                                          reverse=False)
+        current_selected_video = sorted(current_selected_video, key=lambda cand: cand['diversity'][score_index],
+                                        reverse=False)
 
         for cand in current_selected_article:
             selected_article.append('https://market.yiyouliao.com/v2/content-detail/article/' + cand['infoId'])
