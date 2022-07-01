@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
 import torch
-
 sys.path.insert(0, sys.path[0] + '/../')
 from commons import request, content_wash
 from model.predict import prepare_model, predict
@@ -59,6 +58,7 @@ def calculate_title_cos(candidates, sentence_transformers):
         title = sentence_transformers.encode(cand['title'])
         content = sentence_transformers.encode(cand['filter_content'])
         cand['filter_content_embedding'] = content
+        cand['title_embedding'] = title
         cosine_score = cos_sim(title, content)
         cand['title_cos'] = cosine_score
     return candidates
@@ -268,6 +268,7 @@ def update_single_package(package_id, cnn_model, device, sentence_transformers, 
 
         current_selected_article = sorted(current_selected_article, key=lambda cand: cand['diversity'][score_index],
                                           reverse=False)
+
         current_selected_video = sorted(current_selected_video, key=lambda cand: cand['diversity'][score_index],
                                         reverse=False)
 
@@ -285,7 +286,7 @@ if __name__ == '__main__':
     logger = get_logger(args.log)
     net, device = prepare_model()
     sentence_transformers = SBert(args.sentence_transformers)
-
+    sentence_transformers.max_seq_length = 64
     allpackage = request.get_packages()
     filter_words = []
     for filter_file in args.filter_words:
